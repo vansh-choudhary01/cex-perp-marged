@@ -52,7 +52,7 @@ export function createOrder(message: EngineRequest) {
             ask = orderbook.asks.get(Number(message.payload.price));
           }
           ask!.push({
-            orderId: crypto.randomUUID(),
+            orderId: order.orderId,
             userId: String(message.payload.userId),
             side: message.payload.side as Side,
             symbol: message.payload.symbol as string,
@@ -141,7 +141,7 @@ export function createOrder(message: EngineRequest) {
             bid = orderbook.bids.get(Number(message.payload.price));
           }
           bid?.push({
-            orderId: crypto.randomUUID(),
+            orderId: order.orderId,
             userId: String(message.payload.userId),
             side: message.payload.side as Side,
             symbol: message.payload.symbol as string,
