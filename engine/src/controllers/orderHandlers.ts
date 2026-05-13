@@ -24,6 +24,8 @@ export function createOrder(message: EngineRequest) {
     price: Number(message.payload.price),
     qty: Number(message.payload.qty),
     filledQty: 0,
+    totalPrice: 0,
+    averagePrice: 0,
     status: "open" as OrderStatus,
     fills: [],
     createdAt: Date.now()
@@ -60,6 +62,8 @@ export function createOrder(message: EngineRequest) {
             qty: Number(message.payload.qty),
             type: "limit",
             filledQty: 0,
+            totalPrice: 0,
+            averagePrice: 0,
             status: "open",
             createdAt: Date.now(),
           })
@@ -85,6 +89,8 @@ export function createOrder(message: EngineRequest) {
             FILLS.push(fill);
 
             topBid!.filledQty += Number(message.payload.qty);
+            topBid!.totalPrice += Number(message.payload.qty) * topBid!.price;
+            topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
             // highestPrice.quantity = diff;
             message.payload.qty = 0;
           } else {
@@ -93,7 +99,7 @@ export function createOrder(message: EngineRequest) {
               fillId: crypto.randomUUID(),
               symbol: order.symbol,
               price: topBid!.price,
-              qty: topBid!.qty,
+              qty: topBid!.qty - topBid!.filledQty,
               buyOrderId: topBid!.orderId,
               sellOrderId: order.orderId,
               createdAt: Date.now()
@@ -103,7 +109,9 @@ export function createOrder(message: EngineRequest) {
 
             message.payload.qty = Number(message.payload.qty) - (topBid!.qty - topBid!.filledQty);
             topBid!.filledQty = topBid!.qty;
-            order.filledQty += topBid!.qty;
+            topBid!.totalPrice += topBid!.price * topBid!.qty;
+            topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
+            order.filledQty += topBid!.qty - topBid!.filledQty;
           }
           if (topBid!.qty === topBid!.filledQty) {
             bid?.shift();
@@ -135,6 +143,8 @@ export function createOrder(message: EngineRequest) {
             symbol: message.payload.symbol as string,
             price: Number(message.payload.price),
             qty: Number(message.payload.qty),
+            totalPrice: 0,
+            averagePrice: 0,
             type: "limit",
             filledQty: 0,
             status: "open",
@@ -161,6 +171,8 @@ export function createOrder(message: EngineRequest) {
 
             console.log("topAsk!.filledQty ", topAsk!.filledQty);
             topAsk!.filledQty = topAsk!.filledQty + Number(message.payload.qty);
+            topAsk!.totalPrice += topAsk!.price * Number(message.payload.qty);
+            topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
             order.filledQty += Number(message.payload.qty);
             message.payload.qty = 0;
           } else {
@@ -181,6 +193,8 @@ export function createOrder(message: EngineRequest) {
             message.payload.qty = Number(message.payload.qty) - (topAsk!.qty - topAsk!.filledQty);
             order.filledQty += (topAsk!.qty - topAsk!.filledQty);
             topAsk!.filledQty = topAsk!.qty;
+            topAsk!.totalPrice += topAsk!.price * topAsk!.qty;
+            topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
           }
 
           if (topAsk!.qty === topAsk!.filledQty) {

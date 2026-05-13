@@ -16,6 +16,8 @@ export interface RestingOrder {
   price: number;
   qty: number;
   filledQty: number;
+  totalPrice: number;
+  averagePrice: number;
   status: OrderStatus;
   createdAt: number;
 }
@@ -29,6 +31,8 @@ export interface OrderRecord {
   price: number | null;
   qty: number;
   filledQty: number;
+  totalPrice: number;
+  averagePrice: number;
   status: OrderStatus;
   fills: Fill[];
   createdAt: number;

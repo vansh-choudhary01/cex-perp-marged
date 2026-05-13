@@ -25,15 +25,3 @@ export async function updateBalance(req: Request, res: Response): Promise<void> 
     error: engineResponse.error,
   });
 }
-
-export async function getBalances(req: Request, res: Response): Promise<void> {
-  const userId = getUserId(req);
-
-  const engineResponse = await sendToEngine("get_user_balance", {
-    userId,
-  });
-
-  res.status(engineResponse.ok ? 200 : 400).json(engineResponse.ok ? engineResponse.data : {
-    error: engineResponse.error,
-  });
-}

@@ -7,4 +7,3 @@ import { getBalance } from "../controllers/exchange-controller.js";
 export const profileRouter = Router();
 
 profileRouter.post("/updateBalance", requireAuth, asyncHandler(updateBalance));
-profileRouter.get("/get_user_balance", requireAuth, asyncHandler(getBalance));
