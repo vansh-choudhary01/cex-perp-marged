@@ -45,6 +45,8 @@ export interface Fill {
 }
 
 export interface OrderBook {
+  bidsHeap: any,
+  asksHeap: any,
   bids: Map<number, RestingOrder[]>;
   asks: Map<number, RestingOrder[]>;
 }
@@ -71,5 +73,5 @@ export interface DepthResponse {
 
 export const BALANCES = new Map<string, Record<string, Balance>>();
 export const ORDERBOOKS = new Map<string, OrderBook>();
-export const ORDERS = new Map<string, OrderRecord>();
+export const ORDERS = new Map<string, OrderRecord[]>();
 export const FILLS: Fill[] = [];
