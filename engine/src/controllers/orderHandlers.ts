@@ -25,7 +25,7 @@ export function createOrder(message: EngineRequest) {
     qty: Number(message.payload.qty),
     filledQty: 0,
     totalPrice: 0,
-    averagePrice: 0,
+    averagePrice: null,
     status: "open" as OrderStatus,
     fills: [],
     createdAt: Date.now()
@@ -40,11 +40,9 @@ export function createOrder(message: EngineRequest) {
 
     // TODO: first match user balance with (message.payload.price * message.payload.qty) and freese first.
     if (message.payload.side === "sell") {
-      const highestPrice = orderbookBuy.getTop();
-      console.log("highestPrice", highestPrice);
-      console.log("ask qty ;", Number(message.payload.qty));
       // if (!highestPrice) { throw new Error("Buy OrderBook is empty")};
       while (Number(message.payload.qty) > 0) {
+        const highestPrice = orderbookBuy.getTop();
         let bid = orderbook.bids.get(highestPrice?.price);
         console.log("bid list on given price ", bid);
         if (!highestPrice || highestPrice.price < Number(message.payload.price) || !bid || bid.length === 0) {
@@ -63,7 +61,7 @@ export function createOrder(message: EngineRequest) {
             type: "limit",
             filledQty: 0,
             totalPrice: 0,
-            averagePrice: 0,
+            averagePrice: null,
             status: "open",
             createdAt: Date.now(),
           })
@@ -91,6 +89,10 @@ export function createOrder(message: EngineRequest) {
             topBid!.filledQty += Number(message.payload.qty);
             topBid!.totalPrice += Number(message.payload.qty) * topBid!.price;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
+            order.filledQty += Number(message.payload.qty);
+            order.totalPrice += Number(message.payload.qty) * topBid!.price;
+            order!.averagePrice = order!.totalPrice / order!.filledQty;
+            order.status = "filled";
             // highestPrice.quantity = diff;
             message.payload.qty = 0;
           } else {
@@ -108,10 +110,13 @@ export function createOrder(message: EngineRequest) {
             FILLS.push(fill);
 
             message.payload.qty = Number(message.payload.qty) - (topBid!.qty - topBid!.filledQty);
+            order.filledQty += topBid!.qty - topBid!.filledQty;
+            order.totalPrice += topBid!.price * topBid!.qty - topBid!.filledQty;
+            order.averagePrice = order.totalPrice / order.filledQty;
+            order.status = "partially_filled";
             topBid!.filledQty = topBid!.qty;
             topBid!.totalPrice += topBid!.price * topBid!.qty;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
-            order.filledQty += topBid!.qty - topBid!.filledQty;
           }
           if (topBid!.qty === topBid!.filledQty) {
             bid?.shift();
@@ -123,11 +128,10 @@ export function createOrder(message: EngineRequest) {
         }
       }
     } else if (message.payload.side === "buy") {
-      const lowestPrice = orderbookSell.getTop();
-      console.log("lowestPrice: ", lowestPrice);
-      console.log("ask qty ;", Number(message.payload.qty));
-
       while (Number(message.payload.qty) > 0) {
+        const lowestPrice = orderbookSell.getTop();
+        console.log("lowestPrice: ", lowestPrice);
+        console.log("ask qty ;", Number(message.payload.qty));
         let ask = orderbook.asks.get(lowestPrice?.price);
         console.log("ask list on given price ", ask);
         if (!lowestPrice || lowestPrice.price > Number(message.payload.price) || !ask || ask.length === 0) {
@@ -144,7 +148,7 @@ export function createOrder(message: EngineRequest) {
             price: Number(message.payload.price),
             qty: Number(message.payload.qty),
             totalPrice: 0,
-            averagePrice: 0,
+            averagePrice: null,
             type: "limit",
             filledQty: 0,
             status: "open",
@@ -174,6 +178,9 @@ export function createOrder(message: EngineRequest) {
             topAsk!.totalPrice += topAsk!.price * Number(message.payload.qty);
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
             order.filledQty += Number(message.payload.qty);
+            order.totalPrice += topAsk!.price * Number(message.payload.qty);
+            order.averagePrice = order.totalPrice / order.filledQty;
+            order.status = "filled";
             message.payload.qty = 0;
           } else {
             const fill = {
@@ -188,10 +195,11 @@ export function createOrder(message: EngineRequest) {
             order.fills.push(fill);
             FILLS.push(fill);
 
-            console.log("topAsk!.filledQty ", topAsk!.filledQty);
-            console.log("topAsk!.qty ", topAsk!.qty);
             message.payload.qty = Number(message.payload.qty) - (topAsk!.qty - topAsk!.filledQty);
             order.filledQty += (topAsk!.qty - topAsk!.filledQty);
+            order.totalPrice += topAsk!.price * (topAsk!.qty - topAsk!.filledQty);
+            order.averagePrice = order.totalPrice / order.filledQty;
+            order.status = "partially_filled";
             topAsk!.filledQty = topAsk!.qty;
             topAsk!.totalPrice += topAsk!.price * topAsk!.qty;
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
@@ -206,6 +214,9 @@ export function createOrder(message: EngineRequest) {
           }
         }
       }
+    }
+    if (order.qty === order.filledQty) {
+      order.status = "filled";
     }
   }
 
