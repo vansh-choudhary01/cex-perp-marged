@@ -218,13 +218,151 @@ export function createOrder(message: EngineRequest) {
     if (order.qty === order.filledQty) {
       order.status = "filled";
     }
+  } else if (message.payload.type === "market") {
+    message.payload.qty = Number(message.payload.qty);
+
+    // TODO: first match user balance with (message.payload.price * message.payload.qty) and freese first.
+    if (message.payload.side === "sell") {
+      while (Number(message.payload.qty) > 0) {
+        const highestPrice = orderbookBuy.getTop();
+        let bid = orderbook.bids.get(highestPrice?.price);
+        if (!highestPrice || !bid || bid.length === 0) {
+          message.payload.qty = 0;
+        } else {
+          let topBid = bid?.[0];
+
+          // first check bids[0] and calculate
+          if (topBid!.qty - topBid!.filledQty > Number(message.payload.qty)) {
+            const fill = {
+              fillId: crypto.randomUUID(),
+              symbol: order.symbol,
+              price: topBid!.price,
+              qty: Number(message.payload.qty),
+              buyOrderId: topBid!.orderId,
+              sellOrderId: order.orderId,
+              createdAt: Date.now()
+            }
+            order.fills.push(fill);
+            FILLS.push(fill);
+
+            topBid!.filledQty = Number(message.payload.qty);
+            topBid!.totalPrice += Number(message.payload.qty) * topBid!.price;
+            topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
+            order.filledQty = Number(message.payload.qty);
+            order.totalPrice += Number(message.payload.qty) * topBid!.price;
+            order!.averagePrice = order!.totalPrice / order!.filledQty;
+            order.status = "filled";
+
+            message.payload.qty = 0;
+          } else {
+            const fill = {
+              fillId: crypto.randomUUID(),
+              symbol: order.symbol,
+              price: topBid!.price,
+              qty: topBid!.qty - topBid!.filledQty,
+              buyOrderId: topBid!.orderId,
+              sellOrderId: order.orderId,
+              createdAt: Date.now()
+            }
+            order.fills.push(fill);
+            FILLS.push(fill);
+
+            message.payload.qty = Number(message.payload.qty) - (topBid!.qty - topBid!.filledQty);
+            order.filledQty += topBid!.qty - topBid!.filledQty;
+            order.totalPrice += topBid!.price * topBid!.qty - topBid!.filledQty;
+            order.averagePrice = order.totalPrice / order.filledQty;
+            order.status = "partially_filled";
+            topBid!.filledQty = topBid!.qty;
+            topBid!.totalPrice += topBid!.price * topBid!.qty;
+            topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
+          }
+          if (topBid!.qty === topBid!.filledQty) {
+            bid?.shift();
+            orderbookBuy.removeTop();
+            while (orderbookBuy.getTop()?.price === topBid!.price && !bid.length) {
+              orderbookBuy.removeTop();
+            }
+          }
+        }
+      }
+    } else if (message.payload.side === "buy") {
+      while (Number(message.payload.qty) > 0) {
+        const lowestPrice = orderbookSell.getTop();
+        let ask = orderbook.asks.get(lowestPrice?.price);
+        if (!lowestPrice || !ask || ask.length === 0) {
+          message.payload.qty = 0;
+        } else {
+          let topAsk = ask?.[0];
+          console.log(topAsk!.qty);
+
+          if (topAsk!.qty - topAsk!.filledQty > Number(message.payload.qty)) {
+            const fill = {
+              fillId: crypto.randomUUID(),
+              symbol: order.symbol,
+              price: topAsk!.price,
+              qty: Number(message.payload.qty),
+              buyOrderId: order.orderId,
+              sellOrderId: topAsk!.orderId,
+              createdAt: Date.now(),
+            }
+            order.fills.push(fill);
+            FILLS.push(fill);
+
+            console.log("topAsk!.filledQty ", topAsk!.filledQty);
+            topAsk!.filledQty = topAsk!.filledQty + Number(message.payload.qty);
+            topAsk!.totalPrice += topAsk!.price * Number(message.payload.qty);
+            topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
+            order.filledQty += Number(message.payload.qty);
+            order.totalPrice += topAsk!.price * Number(message.payload.qty);
+            order.averagePrice = order.totalPrice / order.filledQty;
+            order.status = "filled";
+            message.payload.qty = 0;
+          } else {
+            const fill = {
+              fillId: crypto.randomUUID(),
+              symbol: order.symbol,
+              price: topAsk!.price,
+              qty: topAsk!.qty - topAsk!.filledQty,
+              buyOrderId: order.orderId,
+              sellOrderId: topAsk!.orderId,
+              createdAt: Date.now(),
+            }
+            order.fills.push(fill);
+            FILLS.push(fill);
+
+            message.payload.qty = Number(message.payload.qty) - (topAsk!.qty - topAsk!.filledQty);
+            order.filledQty += (topAsk!.qty - topAsk!.filledQty);
+            order.totalPrice += topAsk!.price * (topAsk!.qty - topAsk!.filledQty);
+            order.averagePrice = order.totalPrice / order.filledQty;
+            order.status = "partially_filled";
+            topAsk!.filledQty = topAsk!.qty;
+            topAsk!.totalPrice += topAsk!.price * topAsk!.qty;
+            topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
+          }
+
+          if (topAsk!.qty === topAsk!.filledQty) {
+            ask?.shift();
+            orderbookSell.removeTop();
+            while (orderbookSell.getTop()?.price === topAsk!.price && !ask.length) {
+              orderbookSell.removeTop();
+            }
+          }
+        }
+      }
+    }
+
+    if (order.qty === order.filledQty) {
+      order.status = "filled";
+    } else if (order.status === "open" && order.filledQty === 0) {
+      order.status = "cancelled";
+    }
   }
 
   return order;
 }
 
 export function updateBalance(message: EngineRequest) {
-  const { userId, balance, symbol} = message.payload;
+  const { userId, balance, symbol } = message.payload;
   const currentUserBalance = BALANCES.get(userId as string);
   if (!currentUserBalance) {
     BALANCES.set(userId as string, {});
