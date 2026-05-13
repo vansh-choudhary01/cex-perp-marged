@@ -7,7 +7,7 @@ import {
 import { sendToEngine } from "../utils/engine-client.js";
 import { sendValidationError } from "../utils/validation.js";
 
-function getUserId(req: Request): string {
+export function getUserId(req: Request): string {
   if (!req.userId) throw new Error("Missing authenticated user");
   return req.userId;
 }

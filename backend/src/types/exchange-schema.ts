@@ -8,6 +8,11 @@ export const orderIdParamSchema = z.object({
   orderId: z.string().trim().min(1, "orderId is required"),
 });
 
+export const updateBalanceSchema = z.object({
+  balance: z.number().min(0, "price can't less then 0"),
+  symbol: z.string().trim().min(1, "symbol is required"),
+})
+
 export const orderBodySchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("limit"),
