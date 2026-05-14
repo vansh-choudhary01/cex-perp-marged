@@ -31,7 +31,10 @@ export function createOrder(message: EngineRequest) {
     createdAt: Date.now()
   };
   if (!ORDERS.get(String(message.payload.userId))) {
-    ORDERS.set(String(message.payload.symbol), [order]);
+    ORDERS.set(String(message.payload.userId), [order]);
+  } else {
+    const orders = ORDERS.get(String(message.payload.userId))
+    orders?.push(order);
   }
 
   if (message.payload.type === "limit") {
@@ -487,4 +490,50 @@ export function getBalances(message: EngineRequest) {
   }
 
   return currentUserBalance || {};
+}
+
+export function getOrders(message: EngineRequest) {
+  const { userId } = message.payload;
+  const orders = ORDERS.get(String(userId));
+
+  return orders || [];
+}
+
+export function getOrder(message: EngineRequest) {
+  const { userId, orderId } = message.payload;
+  const orders = ORDERS.get(String(userId));
+
+  const order = orders?.find((order) => order.orderId === orderId);
+
+  if (!order) {
+    throw new Error("order not found");
+  }
+
+  return order;
+}
+
+export function cancelOrder(message: EngineRequest) {
+  const { userId, orderId } = message.payload;
+  const orders = ORDERS.get(String(userId));
+
+  const order = orders?.find((order) => order.orderId === orderId);
+  
+  if(!order) {
+    throw new Error("order not found");
+  }
+
+  const userBalance = BALANCES.get(String(userId));
+  if (order.side === 'sell') {
+    const remainingOrders = order.qty - order.filledQty;
+    userBalance![order.symbol]!.available += remainingOrders;
+    userBalance![order.symbol]!.locked -= remainingOrders;
+  } else if (order.side === 'buy') {
+    const remainingOrders = order.qty - order.filledQty;
+
+    userBalance!["USD"]!.available += remainingOrders;
+    userBalance!["USD"]!.locked -= remainingOrders; 
+  }
+
+  order.status = "cancelled";
+  return order;
 }

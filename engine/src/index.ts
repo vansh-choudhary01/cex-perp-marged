@@ -1,12 +1,13 @@
 import "dotenv/config";
 import { createClient } from "redis";
 import { env } from "./utils/env.js";
-import { createOrder, getBalances, updateBalance } from "./controllers/orderHandlers.js";
+import { cancelOrder, createOrder, getBalances, getOrder, getOrders, updateBalance } from "./controllers/orderHandlers.js";
 
 export type EngineCommandType =
   | "create_order"
   | "get_depth"
   | "get_user_balance"
+  | "get_orders"
   | "get_order"
   | "cancel_order"
   | "update_balance";
@@ -64,6 +65,12 @@ function handleEngineRequest(message: EngineRequest): unknown {
     return updateBalance(message);
   } else if (message.type === "get_user_balance") {
     return getBalances(message);
+  } else if (message.type === "get_orders") {
+    return getOrders(message);
+  } else if (message.type === "get_order") {
+    return getOrder(message);
+  } else if (message.type === "cancel_order") {
+    return cancelOrder(message);
   }
 
   throw new Error("TODO(student): implement this engine request type");
