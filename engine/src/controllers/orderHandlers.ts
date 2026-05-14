@@ -357,7 +357,9 @@ export function createOrder(message: EngineRequest) {
         if (!lowestPrice || !ask || ask.length === 0) {
           message.payload.qty = 0;
         } else {
-          message.payload.qty = userBalance!["USD"]!.available / lowestPrice!.price;
+          if (message.payload.qty as number > userBalance!["USD"]!.available / lowestPrice!.price) {
+            message.payload.qty = userBalance!["USD"]!.available / lowestPrice!.price;
+          }
           let topAsk = ask?.[0];
           const opponentBalance = BALANCES.get(topAsk!.userId);
           let filledQty = 0;
@@ -463,6 +465,23 @@ export function updateBalance(message: EngineRequest) {
 export function getBalances(message: EngineRequest) {
   const { userId } = message.payload;
   const currentUserBalance = BALANCES.get(userId as string);
+
+  // TODO: remove after testing
+  if (!currentUserBalance) {
+    const testingBalance = {
+      "USD": {
+        available: 1000000 as number,
+        locked: 0
+      },
+      "BTC": {
+        available: 1000 as number,
+        locked: 0
+      }
+    };
+    BALANCES.set(userId as string, testingBalance);
+    return testingBalance;
+  }
+
   if (!currentUserBalance) {
     BALANCES.set(userId as string, {});
   }
