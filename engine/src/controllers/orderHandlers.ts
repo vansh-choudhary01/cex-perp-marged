@@ -41,9 +41,18 @@ export function createOrder(message: EngineRequest) {
     // TODO: first match user balance with (message.payload.price * message.payload.qty) and freese first.
     if (message.payload.side === "sell") {
       // if (!highestPrice) { throw new Error("Buy OrderBook is empty")};
+      const userBalance = BALANCES.get(order.userId);
+      if (!userBalance || (userBalance![order.symbol]?.available! < order.qty)) {
+        order.status = "cancelled";
+        return order;
+      } else {
+        userBalance[order.symbol]!.available -= order.qty;
+        userBalance[order.symbol]!.locked += order.qty;
+      }
       while (Number(message.payload.qty) > 0) {
         const highestPrice = orderbookBuy.getTop();
         let bid = orderbook.bids.get(highestPrice?.price);
+        let filledQty = 0;
         console.log("bid list on given price ", bid);
         if (!highestPrice || highestPrice.price < Number(message.payload.price) || !bid || bid.length === 0) {
           let ask = orderbook.asks.get(Number(message.payload.price));
@@ -70,6 +79,7 @@ export function createOrder(message: EngineRequest) {
           message.payload.qty = 0;
         } else {
           let topBid = bid?.[0];
+          const opponentBalance = BALANCES.get(topBid!.userId);
           console.log(topBid!.qty);
 
           // first check bids[0] and caluculate 
@@ -86,6 +96,7 @@ export function createOrder(message: EngineRequest) {
             order.fills.push(fill);
             FILLS.push(fill);
 
+            filledQty = Number(message.payload.qty);
             topBid!.filledQty += Number(message.payload.qty);
             topBid!.totalPrice += Number(message.payload.qty) * topBid!.price;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
@@ -114,6 +125,7 @@ export function createOrder(message: EngineRequest) {
             order.totalPrice += topBid!.price * topBid!.qty - topBid!.filledQty;
             order.averagePrice = order.totalPrice / order.filledQty;
             order.status = "partially_filled";
+            filledQty = topBid!.qty - topBid!.filledQty;
             topBid!.filledQty = topBid!.qty;
             topBid!.totalPrice += topBid!.price * topBid!.qty;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
@@ -125,9 +137,26 @@ export function createOrder(message: EngineRequest) {
               orderbookBuy.removeTop();
             }
           }
+          if (filledQty > 0) {
+            opponentBalance![order.symbol]!.available += filledQty;
+            opponentBalance!["USD"]!.locked -= filledQty * topBid!.price;
+          }
         }
       }
+
+      if (order.filledQty > 0) {
+        userBalance[order.symbol]!.locked -= order.filledQty;
+        userBalance["USD"]!.available += order.totalPrice;
+      }
     } else if (message.payload.side === "buy") {
+      const userBalance = BALANCES.get(order.userId);
+      if (!userBalance || (userBalance!["USD"]?.available! < Number(order.price) * order.qty)) {
+        order.status = "cancelled";
+        return order;
+      } else {
+        userBalance["USD"]!.available -= Number(order.price) * order.qty;
+        userBalance["USD"]!.locked += Number(order.price) * order.qty;
+      }
       while (Number(message.payload.qty) > 0) {
         const lowestPrice = orderbookSell.getTop();
         console.log("lowestPrice: ", lowestPrice);
@@ -159,6 +188,8 @@ export function createOrder(message: EngineRequest) {
         } else {
           let topAsk = ask?.[0];
           console.log(topAsk!.qty);
+          const opponentBalance = BALANCES.get(topAsk!.userId);
+          let filledQty = 0;
 
           if (topAsk!.qty - topAsk!.filledQty > Number(message.payload.qty)) {
             const fill = {
@@ -174,7 +205,8 @@ export function createOrder(message: EngineRequest) {
             FILLS.push(fill);
 
             console.log("topAsk!.filledQty ", topAsk!.filledQty);
-            topAsk!.filledQty = topAsk!.filledQty + Number(message.payload.qty);
+            filledQty = Number(message.payload.qty);
+            topAsk!.filledQty += Number(message.payload.qty);
             topAsk!.totalPrice += topAsk!.price * Number(message.payload.qty);
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
             order.filledQty += Number(message.payload.qty);
@@ -200,6 +232,7 @@ export function createOrder(message: EngineRequest) {
             order.totalPrice += topAsk!.price * (topAsk!.qty - topAsk!.filledQty);
             order.averagePrice = order.totalPrice / order.filledQty;
             order.status = "partially_filled";
+            filledQty = (topAsk!.qty - topAsk!.filledQty);
             topAsk!.filledQty = topAsk!.qty;
             topAsk!.totalPrice += topAsk!.price * topAsk!.qty;
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
@@ -212,7 +245,17 @@ export function createOrder(message: EngineRequest) {
               orderbookSell.removeTop();
             }
           }
+
+          if (filledQty > 0) {
+            opponentBalance![order.symbol]!.locked -= filledQty;
+            opponentBalance!["USD"]!.available += filledQty * topAsk!.price;
+          }
         }
+      }
+      if (order.filledQty > 0) {
+        userBalance["USD"]!.available += ((Number(order.price) * order.filledQty) - (Number(order.averagePrice) * order.filledQty));
+        userBalance["USD"]!.locked -= Number(order.price) * order.filledQty;
+        userBalance[order.symbol]!.available += order.filledQty;
       }
     }
     if (order.qty === order.filledQty) {
@@ -220,9 +263,18 @@ export function createOrder(message: EngineRequest) {
     }
   } else if (message.payload.type === "market") {
     message.payload.qty = Number(message.payload.qty);
+    const userBalance = BALANCES.get(order.userId);
+    if (!userBalance || !userBalance![order.symbol]) {
+      order.status = "cancelled";
+      return order;
+    }
 
     // TODO: first match user balance with (message.payload.price * message.payload.qty) and freese first.
     if (message.payload.side === "sell") {
+      if (userBalance![order.symbol]!.available < order.qty) {
+        order.status = "cancelled";
+        return order;
+      }
       while (Number(message.payload.qty) > 0) {
         const highestPrice = orderbookBuy.getTop();
         let bid = orderbook.bids.get(highestPrice?.price);
@@ -230,6 +282,8 @@ export function createOrder(message: EngineRequest) {
           message.payload.qty = 0;
         } else {
           let topBid = bid?.[0];
+          const opponentBalance = BALANCES.get(topBid!.userId);
+          let filledQty = 0;
 
           // first check bids[0] and calculate
           if (topBid!.qty - topBid!.filledQty > Number(message.payload.qty)) {
@@ -245,6 +299,7 @@ export function createOrder(message: EngineRequest) {
             order.fills.push(fill);
             FILLS.push(fill);
 
+            filledQty = Number(message.payload.qty);
             topBid!.filledQty = Number(message.payload.qty);
             topBid!.totalPrice += Number(message.payload.qty) * topBid!.price;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
@@ -272,6 +327,7 @@ export function createOrder(message: EngineRequest) {
             order.totalPrice += topBid!.price * topBid!.qty - topBid!.filledQty;
             order.averagePrice = order.totalPrice / order.filledQty;
             order.status = "partially_filled";
+            filledQty = topBid!.qty - topBid!.filledQty;
             topBid!.filledQty = topBid!.qty;
             topBid!.totalPrice += topBid!.price * topBid!.qty;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
@@ -283,7 +339,16 @@ export function createOrder(message: EngineRequest) {
               orderbookBuy.removeTop();
             }
           }
+          if (filledQty > 0) {
+            opponentBalance![order.symbol]!.available += filledQty;
+            opponentBalance!["USD"]!.locked -= filledQty * topBid!.price;
+          }
         }
+      }
+
+      if (order.filledQty > 0) {
+        userBalance![order.symbol]!.available -= order.filledQty;
+        userBalance!["USD"]!.available += order.totalPrice;
       }
     } else if (message.payload.side === "buy") {
       while (Number(message.payload.qty) > 0) {
@@ -292,7 +357,10 @@ export function createOrder(message: EngineRequest) {
         if (!lowestPrice || !ask || ask.length === 0) {
           message.payload.qty = 0;
         } else {
+          message.payload.qty = userBalance!["USD"]!.available / lowestPrice!.price;
           let topAsk = ask?.[0];
+          const opponentBalance = BALANCES.get(topAsk!.userId);
+          let filledQty = 0;
           console.log(topAsk!.qty);
 
           if (topAsk!.qty - topAsk!.filledQty > Number(message.payload.qty)) {
@@ -309,7 +377,9 @@ export function createOrder(message: EngineRequest) {
             FILLS.push(fill);
 
             console.log("topAsk!.filledQty ", topAsk!.filledQty);
-            topAsk!.filledQty = topAsk!.filledQty + Number(message.payload.qty);
+
+            filledQty = Number(message.payload.qty);
+            topAsk!.filledQty += Number(message.payload.qty);
             topAsk!.totalPrice += topAsk!.price * Number(message.payload.qty);
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
             order.filledQty += Number(message.payload.qty);
@@ -335,6 +405,7 @@ export function createOrder(message: EngineRequest) {
             order.totalPrice += topAsk!.price * (topAsk!.qty - topAsk!.filledQty);
             order.averagePrice = order.totalPrice / order.filledQty;
             order.status = "partially_filled";
+            filledQty = (topAsk!.qty - topAsk!.filledQty);
             topAsk!.filledQty = topAsk!.qty;
             topAsk!.totalPrice += topAsk!.price * topAsk!.qty;
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
@@ -347,7 +418,17 @@ export function createOrder(message: EngineRequest) {
               orderbookSell.removeTop();
             }
           }
+
+          if (filledQty > 0) {
+            opponentBalance![order.symbol]!.locked -= filledQty;
+            opponentBalance!["USD"]!.available += filledQty * topAsk!.price;
+          }
         }
+      }
+
+      if (order.filledQty > 0) {
+        userBalance!["USD"]!.available -= order.totalPrice;
+        userBalance![order.symbol]!.available += order.filledQty;
       }
     }
 
