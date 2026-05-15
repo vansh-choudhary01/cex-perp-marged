@@ -53,34 +53,32 @@ export function createOrder(message: EngineRequest) {
         userBalance[order.symbol]!.locked += order.qty;
       }
       while (Number(message.payload.qty) > 0) {
-        const highestPrice = orderbookBuy.getTop();
+        let highestPrice = orderbookBuy.getTop();
         let bid = orderbook.bids.get(highestPrice?.price);
         let filledQty = 0;
         console.log("bid list on given price ", bid);
+
+        if (!bid || bid.length === 0) {
+          orderbookBuy.removeTop();
+          while (highestPrice && orderbookBuy.getTop()?.price === highestPrice!.price) {
+            orderbookBuy.removeTop();
+          }
+          highestPrice = orderbookBuy.getTop();
+          bid = orderbook.bids.get(highestPrice?.price);
+        }
+
         if (!highestPrice || highestPrice.price < Number(message.payload.price) || !bid || bid.length === 0) {
           let ask = orderbook.asks.get(Number(message.payload.price));
           if (!ask) {
             orderbook.asks.set(Number(message.payload.price), []);
             ask = orderbook.asks.get(Number(message.payload.price));
           }
-          ask!.push({
-            orderId: order.orderId,
-            userId: String(message.payload.userId),
-            side: message.payload.side as Side,
-            symbol: message.payload.symbol as string,
-            price: Number(message.payload.price),
-            qty: Number(message.payload.qty),
-            type: "limit",
-            filledQty: 0,
-            totalPrice: 0,
-            averagePrice: null,
-            status: "open",
-            createdAt: Date.now(),
-          })
+          ask!.push(order as RestingOrder);
           orderbookSell.push({ price: Number(message.payload.price) });
 
           message.payload.qty = 0;
         } else {
+          
           let topBid = bid?.[0];
           const opponentBalance = BALANCES.get(topBid!.userId);
           console.log(topBid!.qty);
@@ -161,31 +159,27 @@ export function createOrder(message: EngineRequest) {
         userBalance["USD"]!.locked += Number(order.price) * order.qty;
       }
       while (Number(message.payload.qty) > 0) {
-        const lowestPrice = orderbookSell.getTop();
+        let lowestPrice = orderbookSell.getTop();
         console.log("lowestPrice: ", lowestPrice);
         console.log("ask qty ;", Number(message.payload.qty));
         let ask = orderbook.asks.get(lowestPrice?.price);
         console.log("ask list on given price ", ask);
+
+        if (!ask || !ask.length) {
+          orderbookSell.removeTop();
+          while (lowestPrice && orderbookSell.getTop().price === lowestPrice.price) {
+            orderbookSell.removeTop();
+          }
+          lowestPrice = orderbookSell.getTop();
+          ask = orderbook.asks.get(lowestPrice?.price);
+        }
         if (!lowestPrice || lowestPrice.price > Number(message.payload.price) || !ask || ask.length === 0) {
           let bid = orderbook.bids.get(Number(message.payload.price));
           if (!bid) {
             orderbook.bids.set(Number(message.payload.price), []);
             bid = orderbook.bids.get(Number(message.payload.price));
           }
-          bid?.push({
-            orderId: order.orderId,
-            userId: String(message.payload.userId),
-            side: message.payload.side as Side,
-            symbol: message.payload.symbol as string,
-            price: Number(message.payload.price),
-            qty: Number(message.payload.qty),
-            totalPrice: 0,
-            averagePrice: null,
-            type: "limit",
-            filledQty: 0,
-            status: "open",
-            createdAt: Date.now(),
-          })
+          bid?.push(order as RestingOrder);
           orderbookBuy.push({ price: Number(message.payload.price) });
           message.payload.qty = 0;
         } else {
@@ -279,8 +273,17 @@ export function createOrder(message: EngineRequest) {
         return order;
       }
       while (Number(message.payload.qty) > 0) {
-        const highestPrice = orderbookBuy.getTop();
+        let highestPrice = orderbookBuy.getTop();
         let bid = orderbook.bids.get(highestPrice?.price);
+
+        if (!bid || !bid.length) {
+          orderbookBuy.removeTop();
+          while (highestPrice && orderbookBuy.getTop().price === highestPrice.price) {
+            orderbookBuy.removeTop();
+          }
+          highestPrice = orderbookBuy.getTop();
+          bid = orderbook.bids.get(highestPrice.price);
+        }
         if (!highestPrice || !bid || bid.length === 0) {
           message.payload.qty = 0;
         } else {
@@ -355,8 +358,17 @@ export function createOrder(message: EngineRequest) {
       }
     } else if (message.payload.side === "buy") {
       while (Number(message.payload.qty) > 0) {
-        const lowestPrice = orderbookSell.getTop();
+        let lowestPrice = orderbookSell.getTop();
         let ask = orderbook.asks.get(lowestPrice?.price);
+
+        if (!ask || !ask.length) {
+          orderbookSell.removeTop();
+          while (lowestPrice && orderbookSell.getTop().price === lowestPrice.price) {
+            orderbookSell.removeTop();
+          }
+          lowestPrice = orderbookSell.getTop();
+          ask = orderbook.asks.get(lowestPrice.price);
+        }
         if (!lowestPrice || !ask || ask.length === 0) {
           message.payload.qty = 0;
         } else {
@@ -517,21 +529,26 @@ export function cancelOrder(message: EngineRequest) {
   const orders = ORDERS.get(String(userId));
 
   const order = orders?.find((order) => order.orderId === orderId);
-  
-  if(!order) {
+
+  if (!order) {
     throw new Error("order not found");
   }
 
   const userBalance = BALANCES.get(String(userId));
   if (order.side === 'sell') {
+    let restingOrders = ORDERBOOKS.get(order.symbol)!.bids.get(order.price as number);
+    restingOrders = restingOrders!.filter((restingOrder) => restingOrder.orderId === order.orderId);
+
     const remainingOrders = order.qty - order.filledQty;
     userBalance![order.symbol]!.available += remainingOrders;
     userBalance![order.symbol]!.locked -= remainingOrders;
   } else if (order.side === 'buy') {
-    const remainingOrders = order.qty - order.filledQty;
+    let restingOrders = ORDERBOOKS.get(order.symbol)!.asks.get(order.price as number);
+    restingOrders = restingOrders!.filter((restingOrders) => restingOrders.orderId === order.orderId);
 
+    const remainingOrders = order.qty - order.filledQty;
     userBalance!["USD"]!.available += remainingOrders;
-    userBalance!["USD"]!.locked -= remainingOrders; 
+    userBalance!["USD"]!.locked -= remainingOrders;
   }
 
   order.status = "cancelled";
