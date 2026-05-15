@@ -78,7 +78,7 @@ export function createOrder(message: EngineRequest) {
 
           message.payload.qty = 0;
         } else {
-          
+
           let topBid = bid?.[0];
           const opponentBalance = BALANCES.get(topBid!.userId);
           console.log(topBid!.qty);
@@ -167,7 +167,7 @@ export function createOrder(message: EngineRequest) {
 
         if (!ask || !ask.length) {
           orderbookSell.removeTop();
-          while (lowestPrice && orderbookSell.getTop().price === lowestPrice.price) {
+          while (lowestPrice && orderbookSell.getTop()?.price === lowestPrice.price) {
             orderbookSell.removeTop();
           }
           lowestPrice = orderbookSell.getTop();
@@ -278,7 +278,7 @@ export function createOrder(message: EngineRequest) {
 
         if (!bid || !bid.length) {
           orderbookBuy.removeTop();
-          while (highestPrice && orderbookBuy.getTop().price === highestPrice.price) {
+          while (highestPrice && orderbookBuy.getTop()?.price === highestPrice.price) {
             orderbookBuy.removeTop();
           }
           highestPrice = orderbookBuy.getTop();
@@ -363,11 +363,11 @@ export function createOrder(message: EngineRequest) {
 
         if (!ask || !ask.length) {
           orderbookSell.removeTop();
-          while (lowestPrice && orderbookSell.getTop().price === lowestPrice.price) {
+          while (lowestPrice && orderbookSell.getTop()?.price === lowestPrice.price) {
             orderbookSell.removeTop();
           }
           lowestPrice = orderbookSell.getTop();
-          ask = orderbook.asks.get(lowestPrice.price);
+          ask = orderbook.asks.get(lowestPrice?.price);
         }
         if (!lowestPrice || !ask || ask.length === 0) {
           message.payload.qty = 0;
@@ -535,16 +535,19 @@ export function cancelOrder(message: EngineRequest) {
   }
 
   const userBalance = BALANCES.get(String(userId));
+  const orderBook = ORDERBOOKS.get(order.symbol);
   if (order.side === 'sell') {
-    let restingOrders = ORDERBOOKS.get(order.symbol)!.bids.get(order.price as number);
-    restingOrders = restingOrders!.filter((restingOrder) => restingOrder.orderId === order.orderId);
+    let restingOrders = orderBook!.asks.get(order.price as number);
+    let index = restingOrders!.findIndex((restingOrder) => restingOrder.orderId === order.orderId);
+    restingOrders!.splice(index, 1);
 
     const remainingOrders = order.qty - order.filledQty;
     userBalance![order.symbol]!.available += remainingOrders;
     userBalance![order.symbol]!.locked -= remainingOrders;
   } else if (order.side === 'buy') {
-    let restingOrders = ORDERBOOKS.get(order.symbol)!.asks.get(order.price as number);
-    restingOrders = restingOrders!.filter((restingOrders) => restingOrders.orderId === order.orderId);
+    let restingOrders = orderBook!.bids.get(order.price as number);
+    let index = restingOrders!.findIndex((restingOrders) => restingOrders.orderId === order.orderId);
+    restingOrders!.splice(index, 1);
 
     const remainingOrders = order.qty - order.filledQty;
     userBalance!["USD"]!.available += remainingOrders;
