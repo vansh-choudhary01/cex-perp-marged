@@ -571,3 +571,56 @@ export function cancelOrder(message: EngineRequest) {
   order.status = "cancelled";
   return order;
 }
+
+export function getDepth(message: EngineRequest) {
+  const { symbol } = message.payload;
+
+  const orderBook = ORDERBOOKS.get(String(symbol));
+  if (!orderBook) {
+    return {
+      bids: [],
+      asks: [],
+    }
+  }
+
+  const bidsMap = orderBook!.bids;
+  let bids = [];
+  for(const key of bidsMap?.keys()) {
+    let qty = 0;
+    if (bidsMap.get(key)) {
+      for (const order of bidsMap.get(key)!) {
+        qty += order.qty - order.filledQty;
+      }
+    }
+    if (qty === 0) continue;
+    bids.push({
+      price: key,
+      qty: qty,
+    });
+  }
+
+  const asksMap = orderBook!.asks;
+  let asks = [];
+  for(const key of asksMap?.keys()) {
+    let qty = 0;
+    if (asksMap.get(key)) {
+      for (const order of asksMap.get(key)!) {
+        qty += order.qty - order.filledQty;
+      }
+    }
+
+    if (qty === 0) continue;
+    asks.push({
+      price: key,
+      qty: qty,
+    });
+  }
+
+  bids.sort((a: any, b: any) => b.price - a.price);
+  asks.sort((a: any, b: any) => a.price - b.price);
+
+  return {
+    bids,
+    asks,
+  }
+}

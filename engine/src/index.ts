@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { createClient } from "redis";
 import { env } from "./utils/env.js";
-import { cancelOrder, createOrder, getBalances, getOrder, getOrders, updateBalance } from "./controllers/orderHandlers.js";
+import { cancelOrder, createOrder, getBalances, getDepth, getOrder, getOrders, updateBalance } from "./controllers/orderHandlers.js";
 
 export type EngineCommandType =
   | "create_order"
@@ -71,6 +71,8 @@ function handleEngineRequest(message: EngineRequest): unknown {
     return getOrder(message);
   } else if (message.type === "cancel_order") {
     return cancelOrder(message);
+  } else if (message.type === "get_depth") {
+    return getDepth(message);
   }
 
   throw new Error("TODO(student): implement this engine request type");
