@@ -101,6 +101,7 @@ export function createOrder(message: EngineRequest) {
             topBid!.filledQty += Number(message.payload.qty);
             topBid!.totalPrice += Number(message.payload.qty) * topBid!.price;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
+            topBid!.status = "partially_filled";
             order.filledQty += Number(message.payload.qty);
             order.totalPrice += Number(message.payload.qty) * topBid!.price;
             order!.averagePrice = order!.totalPrice / order!.filledQty;
@@ -130,6 +131,7 @@ export function createOrder(message: EngineRequest) {
             topBid!.filledQty = topBid!.qty;
             topBid!.totalPrice += topBid!.price * topBid!.qty;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
+            topBid!.status = "filled";
           }
           if (topBid!.qty === topBid!.filledQty) {
             bid?.shift();
@@ -206,6 +208,7 @@ export function createOrder(message: EngineRequest) {
             topAsk!.filledQty += Number(message.payload.qty);
             topAsk!.totalPrice += topAsk!.price * Number(message.payload.qty);
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
+            topAsk!.status = "partially_filled";
             order.filledQty += Number(message.payload.qty);
             order.totalPrice += topAsk!.price * Number(message.payload.qty);
             order.averagePrice = order.totalPrice / order.filledQty;
@@ -233,6 +236,7 @@ export function createOrder(message: EngineRequest) {
             topAsk!.filledQty = topAsk!.qty;
             topAsk!.totalPrice += topAsk!.price * topAsk!.qty;
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
+            topAsk!.status = "filled";
           }
 
           if (topAsk!.qty === topAsk!.filledQty) {
@@ -309,6 +313,7 @@ export function createOrder(message: EngineRequest) {
             topBid!.filledQty = Number(message.payload.qty);
             topBid!.totalPrice += Number(message.payload.qty) * topBid!.price;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
+            topBid!.status = "partially_filled";
             order.filledQty = Number(message.payload.qty);
             order.totalPrice += Number(message.payload.qty) * topBid!.price;
             order!.averagePrice = order!.totalPrice / order!.filledQty;
@@ -337,6 +342,7 @@ export function createOrder(message: EngineRequest) {
             topBid!.filledQty = topBid!.qty;
             topBid!.totalPrice += topBid!.price * topBid!.qty;
             topBid!.averagePrice = topBid!.totalPrice / topBid!.filledQty;
+            topBid!.status = "filled";
           }
           if (topBid!.qty === topBid!.filledQty) {
             bid?.shift();
@@ -399,6 +405,7 @@ export function createOrder(message: EngineRequest) {
             topAsk!.filledQty += Number(message.payload.qty);
             topAsk!.totalPrice += topAsk!.price * Number(message.payload.qty);
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
+            topAsk!.status = "partially_filled";
             order.filledQty += Number(message.payload.qty);
             order.totalPrice += topAsk!.price * Number(message.payload.qty);
             order.averagePrice = order.totalPrice / order.filledQty;
@@ -426,6 +433,7 @@ export function createOrder(message: EngineRequest) {
             topAsk!.filledQty = topAsk!.qty;
             topAsk!.totalPrice += topAsk!.price * topAsk!.qty;
             topAsk!.averagePrice = topAsk!.totalPrice / topAsk!.filledQty;
+            topAsk!.status = "filled";
           }
 
           if (topAsk!.qty === topAsk!.filledQty) {
@@ -532,6 +540,12 @@ export function cancelOrder(message: EngineRequest) {
 
   if (!order) {
     throw new Error("order not found");
+  }
+  if (order.status === "filled") {
+    throw new Error("filled orders cannot be cancelled");
+  }
+  if (order.status === "cancelled") {
+    throw new Error("order already cancelled");
   }
 
   const userBalance = BALANCES.get(String(userId));
