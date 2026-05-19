@@ -15,6 +15,7 @@ export const updateBalanceSchema = z.object({
 
 export const orderBodySchema = z.discriminatedUnion("type", [
   z.object({
+    marketType: z.enum(["SPOT", "PERP"]),
     type: z.literal("limit"),
     side: z.enum(["buy", "sell"]),
     symbol: z.string().trim().min(1, "symbol is required"),
@@ -22,6 +23,7 @@ export const orderBodySchema = z.discriminatedUnion("type", [
     qty: z.number().positive("qty must be a positive number"),
   }),
   z.object({
+    marketType: z.enum(["SPOT", "PERP"]),
     type: z.literal("market"),
     side: z.enum(["buy", "sell"]),
     symbol: z.string().trim().min(1, "symbol is required"),
