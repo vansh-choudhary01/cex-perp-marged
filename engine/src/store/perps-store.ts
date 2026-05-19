@@ -1,7 +1,7 @@
 import { AVLTreeInit } from "../algos/avl";
 import { AVLTree } from "avl";
 
-export type Side = "buy" | "sell";
+export type Side = "LONG" | "SORT";
 export type OrderStatus = "open" | "partially_filled" | "filled" | "cancelled";
 export type OrderType = "market" | "limit";
 
@@ -76,11 +76,6 @@ export interface Position {
 }
 
 export type Orderbooks = Record<string, Orderbook>
-
-export const orderbooks: Orderbooks = {
-    SOL: { bids: AVLTreeInit.create("new"), asks: AVLTreeInit.create("new"), lastTradedPrice: 90, indexPrice: 90.01 },
-    ETH: { bids: AVLTreeInit.create("new"), asks: AVLTreeInit.create("new"), lastTradedPrice: 1900, indexPrice: 1899.9 }
-}
 
 export const ORDERBOOKS: Orderbooks = {
     SOL: { bids: AVLTreeInit.create("new"), asks: AVLTreeInit.create("new"), lastTradedPrice: 90, indexPrice: 90.01 },
