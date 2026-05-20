@@ -27,31 +27,28 @@ export function createOrderObj(message: EngineRequest): OrderRecord {
 }
 
 export function createPositionObj(order: OrderRecord): Position {
+    const indexPrice = INDEXPRICES[order.symbol as IndexPrice].indexPrice;
     return {
         symbol: order.symbol,
         side: order.side,
         qty: order.filledQty,
         margin: order.margin,
         leverage: order.leverage,
-        liquidationPrice: 0, // TODO
+        liquidationPrice: indexPrice - (order.margin / order.qty), // TODO
         pnL: (order.filledQty * INDEXPRICES[order.symbol as IndexPrice].indexPrice) - (order.filledQty * order.averagePrice),
         averagePrice: order.averagePrice
     }
 }
 
-export function handleLimitOrder(order: OrderRecord) {
+export function handleOrder(order: OrderRecord) {
     if (order.side === "LONG") {
-        handleLongLimitOrder(order);
+        handleLongOrder(order);
     } else if (order.side === "SORT") {
         handleSortOrder(order);
     }
 }
 
-export function handleMarketOrder(order: OrderRecord) {
-    
-}
-
-export function handleLongLimitOrder(order: OrderRecord) {
+export function handleLongOrder(order: OrderRecord) {
     // user wanna buy first sell last
     let remainingQty = order.qty - order.filledQty;
     const bidsPrices = ORDERBOOKS[order.symbol as Symbol]?.bids;
@@ -76,6 +73,10 @@ export function handleLongLimitOrder(order: OrderRecord) {
             createdAt: Date.now()
         }
         if (!minSeller || !minSeller.data?.openOrders?.length || minSeller.key > order.price!) {
+            if (order.type === "market") {
+                order.status = order.filledQty > 0 ? "partially_filled" : "cancelled";
+                return;
+            }
             const bidRestingOrders = bidsPrices?.find(order.price!);
             if (bidRestingOrders) {
                 bidRestingOrders.data?.openOrders.push(restingOrder);
@@ -85,7 +86,7 @@ export function handleLongLimitOrder(order: OrderRecord) {
                     openOrders: [restingOrder]
                 })
             }
-            
+
             remainingQty = 0;
         } else {
             const firstRestingOrder = minSeller.data.openOrders[0]!;
@@ -101,6 +102,12 @@ export function handleLongLimitOrder(order: OrderRecord) {
                 handleFill(firstRestingOrder!, order, swapQty);
             }
         }
+    }
+
+    if (order.qty === order.filledQty) {
+        order.status = "filled";
+    } else if (order.filledQty > 0) {
+        order.status = "partially_filled";
     }
 
     return order;
@@ -131,6 +138,10 @@ export function handleSortOrder(order: OrderRecord) {
             createdAt: Date.now()
         }
         if (!maxBuyer || !maxBuyer.data?.openOrders?.length || maxBuyer.key < order.price!) {
+            if (order.type === "market") {
+                order.status = order.filledQty > 0 ? "partially_filled" : "cancelled";
+                return;
+            }
             const askRestingOrders = asksPrices?.find(order.price!);
             if (askRestingOrders) {
                 askRestingOrders.data?.openOrders.push(restingOrder);
@@ -140,7 +151,7 @@ export function handleSortOrder(order: OrderRecord) {
                     openOrders: [restingOrder]
                 })
             }
-            
+
             remainingQty = 0;
         } else {
             const firstRestingOrder = maxBuyer.data.openOrders[0]!;
@@ -156,6 +167,12 @@ export function handleSortOrder(order: OrderRecord) {
                 handleFill(firstRestingOrder!, order, swapQty);
             }
         }
+    }
+
+    if (order.qty === order.filledQty) {
+        order.status = "filled";
+    } else if (order.filledQty > 0) {
+        order.status = "partially_filled";
     }
 
     return order;
@@ -182,5 +199,5 @@ export function handleFill(firstRestingOrder: RestingOrder, order: OrderRecord, 
     // opponenet ka resting order update
     const opponentPosition = POSITIONS.get(firstRestingOrder.orderId)!;
     opponentPosition.qty += swapQty;
-    opponentPosition.liquidationPrice = 0; // Todo
+    // opponentPosition.liquidationPrice = 0; // Todo
 }
