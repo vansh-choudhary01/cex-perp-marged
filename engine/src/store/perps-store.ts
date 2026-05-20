@@ -4,6 +4,7 @@ import { AVLTree } from "avl";
 export type Side = "LONG" | "SORT";
 export type OrderStatus = "open" | "partially_filled" | "filled" | "cancelled";
 export type OrderType = "market" | "limit";
+export type Symbol = "SOL" | "ETH";
 
 export interface Balance {
   available: number;
@@ -46,13 +47,15 @@ export interface OrderRecord {
   userId: string;
   side: Side;
   type: OrderType;
-  symbol: string;
+  symbol: Symbol;
   price: number | null;
   qty: number;
   margin: number;
+  indexPrice: number;
+  leverage: number;
   filledQty: number;
   totalPrice: number;
-  averagePrice: number | null;
+  averagePrice: number;
   status: OrderStatus;
   fills: Fill[];
   createdAt: number;
@@ -66,10 +69,11 @@ export type Orderbook = {
 }
 
 export interface Position {
-  market: "SOL" | "ETH",
-  type: "LONG" | "SORT",
+  symbol: "SOL" | "ETH",
+  side: Side,
   qty: number,
   margin: number,
+  leverage: number,
   liquidationPrice: number,
   pnL: number,
   averagePrice: number | null,
@@ -85,6 +89,8 @@ export const ORDERBOOKS: Orderbooks = {
 export const FILLS: Fill[] = [];
 
 export const ORDERS = new Map<string, OrderRecord[]>();
+
+export const POSITIONS = new Map<string, Position>();
 
 export const BALANCES = new Map<string, Record<string, Balance>>();
 

@@ -1,5 +1,5 @@
 import type { EngineRequest } from "..";
-import { BALANCES, FILLS, INDEXPRICES, ORDERBOOKS, ORDERS, type OrderRecord, type OrderStatus, type OrderType, type Position, type RestingOrder, type Side } from "../store/perps-store";
+import { BALANCES, FILLS, INDEXPRICES, ORDERBOOKS, ORDERS, POSITIONS, type OrderRecord, type OrderStatus, type OrderType, type Position, type RestingOrder, type Side } from "../store/perps-store";
 
 export function createOrder(message: EngineRequest) {
     let orderbook = ORDERBOOKS[message.payload.symbol as string];
@@ -21,16 +21,18 @@ export function createOrder(message: EngineRequest) {
         price: Number(message.payload.price),
         qty: Number(message.payload.qty),
         margin: Number(message.payload.margin),
+        leverageMoney: 0,
         filledQty: 0,
         totalPrice: 0,
-        averagePrice: null,
+        averagePrice: 0,
         status: "open" as OrderStatus,
         fills: [],
         createdAt: Date.now()
     };
 
     type Indexprice = keyof typeof INDEXPRICES;
-    const leverage = (order.qty * INDEXPRICES[order.symbol as Indexprice].indexPrice) / order.margin;
+    const index = INDEXPRICES[order.symbol as Indexprice];
+    const leverage = (order.qty * index.indexPrice) / order.margin;
     if (leverage > INDEXPRICES[order.symbol as Indexprice].leverageThresold) {
         order.status = "cancelled";
         return order;
@@ -40,8 +42,10 @@ export function createOrder(message: EngineRequest) {
         market: message.payload.symbol as "SOL" | "ETH",
         type: message.payload.type === "buy" ? "LONG" : "SORT",
         qty: Number(message.payload.qty),
-        margin: Number(message.payload.margin),
-        liquidationPrice: (leverage * order.margin) - order.margin,
+        margin: Number(message.payload.margin), // 100
+        leverage: leverage, // 10
+        // liquidationPrice: index.indexPrice - (index.indexPrice / leverage), // 
+        liquidationPrice: 0,
         pnL: 0,
         averagePrice: null,
     }
@@ -57,7 +61,7 @@ export function createOrder(message: EngineRequest) {
         message.payload.price = Number(message.payload.price) as number;
         message.payload.qty = Number(message.payload.qty) as number;
 
-        if (message.payload.side === "sell") {
+        if (message.payload.side === "SORT") {
             // if (!highestPrice) { throw new Error("Buy OrderBook is empty")};
             const userBalance = BALANCES.get(order.userId);
             if (!userBalance || (userBalance!["USDT"]?.available! < order.margin)) {
@@ -66,7 +70,7 @@ export function createOrder(message: EngineRequest) {
             } else {
                 userBalance[order.symbol]!.available -= order.margin;
                 userBalance[order.symbol]!.locked += order.margin;
-                userBalance[order.symbol]!.leverageAmount += (leverage * order.margin) - order.margin;
+                // userBalance[order.symbol]!.leverageAmount += (leverage * order.margin) - order.margin;
             }
             while (Number(message.payload.qty) > 0) {
                 let highestPrice = orderbookBuy.maxNode();
@@ -74,22 +78,22 @@ export function createOrder(message: EngineRequest) {
                 let filledQty = 0;
                 console.log("bid list on given price ", bid);
 
-                if (!bid || bid.length === 0) {
-                    orderbookBuy.popMax();
-                    while (highestPrice && orderbookBuy.maxNode()?.key === highestPrice.key) {
-                        orderbookBuy.popMax();
-                    }
-                    highestPrice = orderbookBuy.maxNode();
-                    bid = highestPrice?.data?.openOrders;
-                }
+                // if (!bid || bid.length === 0) {
+                //     orderbookBuy.popMax();
+                //     while (highestPrice && orderbookBuy.maxNode()?.key === highestPrice.key) {
+                //         orderbookBuy.popMax();
+                //     }
+                //     highestPrice = orderbookBuy.maxNode();
+                //     bid = highestPrice?.data?.openOrders;
+                // }
 
                 if (!highestPrice || highestPrice.key < Number(message.payload.price) || !bid || bid.length === 0) {
                     let ask = orderbookSell.find(Number(message.payload.price));
                     if (!ask) {
-                        orderbookSell.insert(Number(message.payload.price), {
+                        console.log("inserting into the orderboo", orderbookSell.insert(Number(message.payload.price), {
                             availableQty: 0,
                             openOrders: []
-                        });
+                        }));
                         ask = orderbookSell.find(Number(message.payload.price));
                     }
                     ask?.data?.openOrders.push(order as RestingOrder);
@@ -159,7 +163,9 @@ export function createOrder(message: EngineRequest) {
                             orderbookBuy.popMax();
                         }
                     }
+                    
                     if (filledQty > 0) {
+                        position.qty += filledQty;
                         opponentBalance![order.symbol]!.available += filledQty;
                         opponentBalance!["USD"]!.locked -= filledQty * topBid!.price;
                     }
@@ -170,7 +176,7 @@ export function createOrder(message: EngineRequest) {
                 userBalance[order.symbol]!.locked -= order.filledQty;
                 userBalance["USD"]!.available += order.totalPrice;
             }
-        } else if (message.payload.side === "buy") {
+        } else if (message.payload.side === "LONG") {
             const userBalance = BALANCES.get(order.userId);
             if (!userBalance || (userBalance!["USD"]?.available! < Number(order.price) * order.qty)) {
                 order.status = "cancelled";

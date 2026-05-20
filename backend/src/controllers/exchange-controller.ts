@@ -23,6 +23,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
 
   const { marketType, type, side, symbol, qty } = parsedBody.data;
   const price = type === "market" ? null : parsedBody.data.price;
+  const margin = marketType === "SPOT" ? null: parsedBody.data.margin;
 
   const engineResponse = await sendToEngine("create_order", {
     userId,
@@ -30,8 +31,9 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     type,
     side,
     symbol,
-    price: type === "market" ? null : price,
+    price,
     qty,
+    margin
   });
 
   res.status(engineResponse.ok ? 200 : 400).json(engineResponse.ok ? engineResponse.data : {

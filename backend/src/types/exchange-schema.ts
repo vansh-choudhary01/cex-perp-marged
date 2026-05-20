@@ -15,19 +15,37 @@ export const updateBalanceSchema = z.object({
 
 export const orderBodySchema = z.discriminatedUnion("type", [
   z.object({
-    marketType: z.enum(["SPOT", "PERP"]),
+    marketType: z.literal("SPOT"),
     type: z.literal("limit"),
     side: z.enum(["buy", "sell"]),
-    symbol: z.string().trim().min(1, "symbol is required"),
+    symbol: z.enum(["SOL", "ETH"]),
     price: z.number().positive("limit orders require a positive price"),
     qty: z.number().positive("qty must be a positive number"),
   }),
   z.object({
-    marketType: z.enum(["SPOT", "PERP"]),
+    marketType: z.literal("SPOT"),
     type: z.literal("market"),
     side: z.enum(["buy", "sell"]),
-    symbol: z.string().trim().min(1, "symbol is required"),
+    symbol: z.enum(["SOL", "ETH"]),
     price: z.null().optional(),
     qty: z.number().positive("qty must be a positive number"),
+  }),
+  z.object({
+    marketType: z.literal("PERP"),
+    type: z.literal("limit"),
+    side: z.enum(["buy", "sell"]),
+    symbol: z.enum(["SOL", "ETH"]),
+    price: z.number().positive("limit orders require a positive price"),
+    qty: z.number().positive("qty must be a positive number"),
+    margin: z.number().positive("margin must be a positive number"),
+  }),
+  z.object({
+    marketType: z.literal("PERP"),
+    type: z.literal("market"),
+    side: z.enum(["buy", "sell"]),
+    symbol: z.enum(["SOL", "ETH"]),
+    price: z.null().optional(),
+    qty: z.number().positive("qty must be a positive number"),
+    margin: z.number().positive("margin must be a positive number"),
   }),
 ]);
